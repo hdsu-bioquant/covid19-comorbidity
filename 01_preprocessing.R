@@ -128,9 +128,6 @@ sev.145.seu <- CreateSeuratObject(counts = sev.145.mtx,
                                   min.features = 1
 )
 
-#######################################################################
-
-
 ############################################################################
 ## Loading 146 group cases
 severe.h5 <- H5Fopen('data/GSM4339774_C146_filtered_feature_bc_matrix.h5') 
@@ -193,4 +190,230 @@ saveRDS(merged, '~/sc/sars-cov2/data/liao2020/liao2020_merged_seu.rds')
 saveRDS(subset(merged, seurat_clusters == 18), 
         '~/sc/sars-cov2/data/liao2020/epithelial_spint2_cells.rds')
 
-#################################################################
+##################################################################
+##                                                              ##
+##              Processing Colorectal Cancer scRNA-Seq          ##
+##      Reference: https://www.nature.com/articles/ng.3818      ##
+##                                                              ##
+##################################################################
+## Downloading data
+url1 <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE81861&format=file&file=GSE81861%5FCRC%5FNM%5Fall%5Fcells%5FCOUNT%2Ecsv%2Egz'
+url2 <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE81861&format=file&file=GSE81861%5FCRC%5FNM%5Fall%5Fcells%5FFPKM%2Ecsv%2Egz'
+url3 <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE81861&format=file&file=GSE81861%5FCRC%5FNM%5Fepithelial%5Fcells%5FCOUNT%2Ecsv%2Egz'
+url4 <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE81861&format=file&file=GSE81861%5FCRC%5FNM%5Fepithelial%5Fcells%5FFPKM%2Ecsv%2Egz'
+url5 <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE81861&format=file&file=GSE81861%5FCRC%5Ftumor%5Fall%5Fcells%5FCOUNT%2Ecsv%2Egz'
+url6 <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE81861&format=file&file=GSE81861%5FCRC%5Ftumor%5Fall%5Fcells%5FFPKM%2Ecsv%2Egz'
+url7 <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE81861&format=file&file=GSE81861%5FCRC%5Ftumor%5Fepithelial%5Fcells%5FCOUNT%2Ecsv%2Egz'
+url8 <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE81861&format=file&file=GSE81861%5FCRC%5Ftumor%5Fepithelial%5Fcells%5FFPKM%2Ecsv%2Egz'
+url9 <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE81861&format=file&file=GSE81861%5FCell%5FLine%5FCOUNT%2Ecsv%2Egz'
+url10 <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE81861&format=file&file=GSE81861%5FCell%5FLine%5FFPKM%2Ecsv%2Egz'
+url11 <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE81861&format=file&file=GSE81861%5FGEO%5FEGA%5FID%5Fmatch%2Ecsv%2Egz'
+
+urls <- c(url1, url2, url3, url4, url5, url6, url7, url8, url9, url10, url11)
+
+## Downloading files
+for (u in urls) {
+        print(u)
+        file.name <- gsub('.*file=', '', u)
+        file.name <- gsub('%', '_', file.name)
+        file.name <- gsub('_2Ecsv_2Egz', '.csv.gz', file.name)
+        print(file.name)
+        download.file(url = u, destfile = paste0('data/', file.name))
+}
+
+gzips <- list.files()
+gzips <- gzips[!grepl('match', gzips)]
+gzips
+
+sapply(gzips, function(g) gunzip(g, remove=FALSE))
+
+#################################################################################################################
+## Processing normal epithelial cells
+normal_epi_counts <- read.csv("GSE81861_5FCRC_5FNM_5Fepithelial_5Fcells_5FCOUNT.csv")
+dim(normal_epi_counts)
+
+## Processing gene names
+gene <- sapply(normal_epi_counts$X, function(x) { 
+        sp_name <- str_split(x, pattern = '_')[[1]][2]
+}) 
+normal_epi_counts <- select(normal_epi_counts, -X)
+## removing duplicated ges
+dups <- duplicated(gene)
+normal_epi_counts <- normal_epi_counts[!dups,]
+rownames(normal_epi_counts) <- gene[!dups] 
+
+
+## Extracting annotations from column
+## cell type
+cell_type <- sapply(colnames(normal_epi_counts), function(x) { 
+        sp_name <- str_split(x, pattern = '__')[[1]][2]
+}) 
+sample_ann1 <- sapply(colnames(normal_epi_counts), function(x) { 
+        sp_name <- str_split(x, pattern = '__')[[1]][1]
+}) 
+sample_ann2 <- sapply(colnames(normal_epi_counts), function(x) { 
+        sp_name <- str_split(x, pattern = '__')[[1]][3]
+})
+anns <- data.frame('cell_type' = cell_type,
+                   'sample_ann1' = sample_ann1,
+                   'sample_ann2' = sample_ann2)
+
+## Definition of the seurat object
+epi_normal_seu <- CreateSeuratObject(
+        counts = normal_epi_counts,
+        project = 'sars-cov2',
+        assay = 'RNA',
+        min.cells = 1,
+        min.features = 1
+)
+epi_normal_seu <- AddMetaData(epi_normal_seu, 
+                              metadata = anns)
+epi_normal_seu$'normal_vs_tumor' <- 'normal'
+
+################################################################################################################
+## Processing tumor epithelial cells
+
+tumor_epi_counts <- read.csv("GSE81861_5FCRC_5Ftumor_5Fepithelial_5Fcells_5FCOUNT.csv")
+dim(tumor_epi_counts)
+tumor_epi_counts[1:5, 1:5]
+
+## Processing gene names
+gene <- sapply(tumor_epi_counts$X, function(x) { 
+        sp_name <- str_split(x, pattern = '_')[[1]][2]
+})
+
+## Removing gene names from the count matrix
+tumor_epi_counts <- select(tumor_epi_counts, -X)
+
+## removing duplicated ges
+dups <- duplicated(gene)
+tumor_epi_counts <- tumor_epi_counts[!dups,]
+rownames(tumor_epi_counts) <- gene[!dups] 
+
+
+## Extracting annotations from column
+## cell type
+cell_type <- sapply(colnames(tumor_epi_counts), function(x) { 
+        sp_name <- str_split(x, pattern = '__')[[1]][2]
+}) 
+sample_ann1 <- sapply(colnames(tumor_epi_counts), function(x) { 
+        sp_name <- str_split(x, pattern = '__')[[1]][1]
+}) 
+sample_ann2 <- sapply(colnames(tumor_epi_counts), function(x) { 
+        sp_name <- str_split(x, pattern = '__')[[1]][3]
+})
+anns <- data.frame('cell_type' = cell_type,
+                   'sample_ann1' = sample_ann1,
+                   'sample_ann2' = sample_ann2)
+
+## Definition of the seurat object
+epi_tumor_seu <- CreateSeuratObject(
+        counts = tumor_epi_counts,
+        project = 'sars-cov2',
+        assay = 'RNA',
+        min.cells = 1,
+        min.features = 1
+)
+epi_tumor_seu <- AddMetaData(epi_tumor_seu, 
+                             metadata = anns)
+epi_tumor_seu$'normal_vs_tumor' <- 'tumor'
+
+#############################################################################################################
+counts_vln <- VlnPlot(epi, features = 'nCount_RNA', group.by = 'normal_vs_tumor')
+counts_umap <- FeaturePlot(epi, features = 'nCount_RNA', pt.size = 3)
+
+## Mitochondrial percentage
+epi[["percent.mt"]] <- PercentageFeatureSet(epi, pattern = "^MT-")
+mito_vln <- VlnPlot(epi, features = 'percent.mt', group.by = 'normal_vs_tumor')
+mito_umap <- FeaturePlot(epi, features = 'percent.mt', pt.size = 3)
+
+## Quality plots
+CombinePlots(list(counts_vln, mito_vln, counts_umap, mito_umap))
+
+#############################################################################################################
+## Merge, normalization and explorative analysis
+epi <- merge(x = epi_normal_seu, y = epi_tumor_seu)
+
+epi <- SCTransform(epi)
+epi <- FindVariableFeatures(epi, nfeatures = 3000)
+epi <- RunPCA(epi, features = VariableFeatures(epi))
+ElbowPlot(epi)
+epi <- RunUMAP(epi, dims = 1:20)
+epi <- FindNeighbors(epi)
+epi <- FindClusters(epi, resolution = 1)
+
+## Saving integrated data
+saveRDS(epi, 'data/GSE81861_CRC/epi_seu.rds')
+
+###################################################################
+##                                                               ##
+##              Behjati et al, 2018 data                         ##
+##              renal Clear Cell Carcinoma data                  ##
+##                                                               ##
+##################################################################
+
+
+## Count matrix
+kidney <- readMM('data/tableOfCounts.mtx')
+## gene annotations
+gene_anns <- read.table('data/aat1699_DataS1/tableOfCounts_rowLabels.tsv',
+                        header = T)
+## cell annotations
+anns <- readRDS('data/cell_annot.RDS')
+barcodes <- read.table('data/tableOfCounts_colLabels.tsv',
+                       header = TRUE)
+anns <- data.frame(lapply(anns, as.character), stringsAsFactors = F)
+anns <- cbind(anns, select(barcodes, DropletID, Barcode))
+
+## annotation of dge matrix
+colnames(kidney) <- anns$DropletID
+rownames(kidney) <- gene_anns$Symbol
+kidney <- kidney[!duplicated(rownames(kidney)), ]
+
+################################################################################
+## Filtering data
+
+# exclude all the cells that did not pass QC ("Indistinct" were all the cells that did not pass QC according to annotation of the authors)
+non_indistinct <- ! anns$Compartment == "Indistinct"
+
+# subset cds (exclude Foetal cells), because we only want to compare Normal to Tumor cells
+normal_vs_tumor <- with(anns, Main_category == 'Normal' | Main_category == 'Tumor' )
+
+# subset cds to exclude immune cells and ureter samples
+kidney_or_tumor <- sapply(anns$Category, 
+                          function(x) x %in% c("Normal_mature_kidney", 
+                                               "Kidney_tumour"))
+
+## keeping only CCC
+RCC <- grepl('RCC1|RCC2|VHL|pRCC', anns$Source)
+
+## Dropping NA values
+non_na <- ! is.na(anns$Main_category)
+
+## performing subsetting
+subset <- non_indistinct & normal_vs_tumor & kidney_or_tumor & non_na & RCC
+sub_indexes <- (1:ncol(kidney))[subset]
+kidney <- kidney[ ,  sub_indexes]
+
+###########################################################################
+## definition of the seurat object
+behjati <- CreateSeuratObject(
+        counts = kidney,
+        min.cells = 1,
+        min.features = 1,
+        project = 'sars-cov2', 
+        assay = 'RNA'
+)
+
+
+## Adding metadata
+md <- anns[anns$DropletID %in% colnames(behjati), ]
+behjati@meta.data <- cbind(behjati@meta.data, md)
+
+## Normalization
+behjati <- SCTransform(behjati)
+
+## Saving seurat file
+saveRDS(behjati, 'data/behjati2018_seu.rds')
+
+####################################################################
