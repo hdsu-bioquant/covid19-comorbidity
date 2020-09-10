@@ -516,3 +516,30 @@ liver_seu.ss$'cell_type' <- plyr::mapvalues(liver_seu.ss$seurat_clusters,
 
 saveRDS(liver_seu.ss, 'data/GSE149614_liver_seu.rds')
 
+###################################################################
+##                                                               ##
+##              Lung Adenocarcinoma Laughney et al, 2020         ##
+##                                                               ##
+###################################################################
+
+## Reading h5 files
+counts <- read_rds(paste0(path2data, 'laughney2020_counts_h5.rds'))
+metadata <- read_rds(paste0(path2data, 'laughney2020_metadata_h5.rds'))
+
+## Definition of the seurat object
+colnames(counts) <- metadata$cell_id
+seu <- CreateSeuratObject(
+        counts = counts,
+        project = 'sars-cov2',
+        min.cells = 1,
+        min.features = 1,
+        assay = 'RNA'
+)
+seu <- AddMetaData(seu, metadata = metadata)
+cat('Saving results\n')
+write_rds(seu, 
+          paste0(path2seurat, 
+                 'laughney_h5_seurat.rds'))
+
+
+
