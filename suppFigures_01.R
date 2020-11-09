@@ -1,11 +1,11 @@
-## This script reproduces the supplementary figure 1
-
+### This script reproduces the supplementary figure 1
+#â
 ## Dependencies
 library(dplyr)
 library(Seurat)
 
 ## Initial settings
-project_dir <- '/Users/carlosramirez/sc/diabetes_COVID19_comorbidity/'
+project_dir <- '/media/ag-cherrmann/cramirez/covid19-comorbidity/'
 setwd(project_dir)
 
 ##################################################################
@@ -15,24 +15,36 @@ setwd(project_dir)
 ##################################################################
 
 ## Reading HCL data
-hcl_path <- '~/sc/serine_proteases_regulation/data/hcl/hcl_normalized_adult_seu.rds'
+hcl_path <- 'data/hcl_normalized_adult_seu.rds'
 hcl <- readRDS(hcl_path)
 
 ## Subsetting to adult tissue
 hcl$'adult' <- grepl('adult', tolower(hcl$orig.ident)) &
         ! ( grepl('fetal', tolower(hcl$celltype)))
 hcl <- subset(hcl, adult == TRUE)
+hcl
 
 ## Reading permissivity signature
 perm_signature <- read.table(
-        '~/sc/sars-cov2/data/permissivity_signature_annotated.tsv',
+        'analysis/permissivity_signature_annotated.tsv',
         header = TRUE
 )
 head(perm_signature)
+indxs <- 0.25*nrow(perm_signature) %>% as.integer()
+indxs
+signature <- perm_signature$gene[1:indxs]
 
 ## Cell scoring 
 hcl <- AddModuleScore(
         hcl, 
-        features = list(perm_signature=perm_signature), 
+        features = list(signature),
+        name = 'permissivity_signature_score', 
         nbin = 100
 )
+#mean(hcl$'permissivity_signature_score')
+
+## Saving results
+saveRDS(hcl@meta.data, 'analysis/hcl_scoring.rds')
+write.table(hcl@meta.data, 
+            'analysis/hcl_scoring.tsv', 
+            sep='\t')
