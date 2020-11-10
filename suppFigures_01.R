@@ -1,8 +1,9 @@
 ### This script reproduces the supplementary figure 1
-#â
+
 ## Dependencies
 library(dplyr)
 library(Seurat)
+library(ggplot2)
 
 ## Initial settings
 project_dir <- '/media/ag-cherrmann/cramirez/covid19-comorbidity/'
@@ -48,3 +49,95 @@ saveRDS(hcl@meta.data, 'analysis/hcl_scoring.rds')
 write.table(hcl@meta.data, 
             'analysis/hcl_scoring.tsv', 
             sep='\t')
+
+############################################################
+## Visualization of the results
+scores <- readRDS('analysis/hcl_scoring.rds')
+head(scores)
+
+my_theme <- theme_bw() +
+                theme(panel.grid = element_blank(),
+                      legend.position = 'none') 
+        
+## Cell type plot
+scores_by_cell_type <- split(scores$permissivity_signature_score1, 
+                                f = scores$celltype) 
+mean_by_celltype <- lapply(scores_by_cell_type, mean)
+order.celltype <- mean_by_celltype %>%
+        unlist() %>%
+        sort() %>%
+        names
+
+## Violin plot. Permissivity scores of cell types
+pdf('figures/vlnplot_permissivity_score_bycelltype_hcl.pdf',
+    width = 13)
+scores %>%
+        mutate(celltype = factor(celltype,
+                                 levels = order.celltype)) %>%
+        ggplot(aes(x=celltype, 
+                   y=permissivity_signature_score1,
+                   fill=celltype)) +
+                geom_violin() +
+                coord_flip() +
+                my_theme +
+                xlab('') + ylab('Permissivity signature score')
+dev.off()
+
+## Box plot
+pdf('figures/boxplot_permissivity_score_bycelltype_hcl.pdf',
+    width = 13)
+scores %>%
+        mutate(celltype = factor(celltype,
+                                 levels = order.celltype)) %>%
+        ggplot(aes(x=celltype, 
+                   y=permissivity_signature_score1,
+                   fill=celltype)) +
+        geom_boxplot() +
+        coord_flip() +
+        my_theme +
+        xlab('') + ylab('Permissivity signature score')
+dev.off()
+
+## By tissue type
+
+## Getting order
+scores <- mutate(scores, 
+                 sample = gsub('Adult', '', sample))
+scores_by_tissue <- split(scores$permissivity_signature_score1, 
+                             f = scores$sample) 
+mean_by_tissue <- lapply(scores_by_tissue, mean)
+order.tissue <- mean_by_tissue %>%
+        unlist() %>%
+        sort() %>%
+        names
+
+## Violin plot. Permissivity scores by tissue
+pdf('figures/vlnplot_permissivity_score_bytissue_hcl.pdf',
+    width = 13)
+scores %>%
+        mutate(sample = factor(sample,
+                                 levels = order.tissue)) %>%
+        mutate(sample = gsub('Adult', '', sample)) %>%
+        ggplot(aes(x=sample, 
+                   y=permissivity_signature_score1,
+                   fill=sample)) +
+        geom_violin() +
+        coord_flip() +
+        my_theme +
+        xlab('') + ylab('Permissivity signature score')
+dev.off()
+
+### Box plot. Permissivity scores by tissue
+pdf('figures/boxplot_permissivity_score_by_tissue_hcl.pdf',
+    width = 15)
+scores %>%
+        mutate(sample = factor(sample,
+                               levels = order.tissue)) %>%
+        ggplot(aes(x=sample, 
+                   y=permissivity_signature_score1,
+                   fill=sample)) +
+        geom_boxplot() +
+        coord_flip() +
+        my_theme +
+        xlab('') + ylab('Permissivity signature score')
+dev.off()
