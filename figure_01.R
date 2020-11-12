@@ -65,17 +65,17 @@ lapply(
         function(x) signature.sel$gene[x]
 )
 
-##############################################################################
-
+dir.create('data/22927382/')
 ## Downloading data
 url_lorenz <- 'https://ndownloader.figshare.com/files/22927382'
-if ( ! dir.exists('data/22927382')) {
+lorenz_file <- 'data/Lorenz/covid_nbt_main.rds'
+if ( ! file.exists(lorenz_file)) {
         download.file(url = url_lorenz, 
-                      destfile = 'data/22927382/')
+                      destfile = lorenz_file)
 }
 
 ## Reading Lorenz data
-lorenz <- readRDS('data/22927382/covid_nbt_main.rds')
+lorenz <- readRDS('data/Lorenz/covid_nbt_main.rds')
 
 ## Permissivity 
 ## Reading permissivity signature
@@ -89,38 +89,125 @@ indxs
 signature <- perm_signature$gene[1:indxs]
 
 
-## subsampling
-lorenz.ss <- subset(lorenz, 
-                    cells = sample(Cells(lorenz), 
-                                   3000))
-lorenz.ss$severity %>% table()
-lorenz.ss$celltype %>% table()
-rm(lorenz)
-
 ## Scoring cells
 ## Cell scoring 
-lorenz.ss <- AddModuleScore(
-        lorenz.ss, 
+lorenz <- AddModuleScore(
+        lorenz, 
         features = list(signature),
         name = 'permissivity_signature_score', 
-        nbin = 50
+        nbin = 200
 )
 
-## Saving results
-saveRDS(lorenz.ss@meta.data, 'analysis/lorenz_scoring.rds')
-write.table(lorenz.ss@meta.data, 
-            'analysis/lorenz.ss_scoring.tsv', 
-            sep='\t')
 
-subset(lorenz.ss, 
+pdf('figures/lorenz_scoring_by_celltype.pdf')
+subset(lorenz, 
        severity %in% c('critical', 
                        'moderate'))@meta.data %>%
         ggplot(aes(x = celltype, 
                    y = permissivity_signature_score1,
                    fill = severity)) +
-                geom_boxplot() +
-                coord_flip() +
-                theme_bw() +
-                theme(panel.grid = element_blank()) +
-                xlab('')
+        scale_fill_manual(values = c('green', 'red')) +
+        geom_boxplot() +
+        coord_flip() +
+        theme_bw() +
+        theme(panel.grid = element_blank()) +
+        xlab('') + ggtitle('Lorenz')
+dev.off()
 
+pdf('figures/lorenz_scoring.pdf')
+subset(lorenz, 
+       severity %in% c('critical', 
+                       'moderate'))@meta.data %>%
+        ggplot(aes(x = severity, 
+                   y = permissivity_signature_score1,
+                   fill = severity)) +
+        scale_fill_manual(values = c('green', 'red')) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(panel.grid = element_blank()) +
+        xlab('') + ggtitle('Lorenz')
+dev.off()
+
+pdf('figures/lorenz_scoring_boxplot_wt.pdf')
+subset(lorenz, 
+       severity %in% c('critical', 
+                       'moderate'))@meta.data %>%
+        mutate(severity = factor(severity,
+                                 levels = c('moderate',
+                                            'critical'))) %>%
+        ggboxplot(x = "severity", 
+                  y = "permissivity_signature_score1",
+                  color = "severity", 
+                  palette = "jco") +
+        stat_compare_means(label.y = 0.8) +
+        scale_color_manual(values = c('green3', 'red3')) +
+        ggtitle('Lorenz')
+dev.off()
+
+#######################################################################
+## Blinz data
+
+blish <- readRDS('data/blish_covid.seu.rds')
+
+## scoring cells
+blish <- AddModuleScore(
+        blish, 
+        features = list(signature),
+        name = 'permissivity_signature_score', 
+        nbin = 50
+)
+
+pdf('figures/blish_scoring_by_celltype.pdf')
+subset(blish, 
+       Admission.level %in% c('Floor', 
+                              'ICU'))@meta.data %>%
+        ggplot(aes(x = cell.type.fine, 
+                   y = permissivity_signature_score1,
+                   fill = Admission.level)) +
+        scale_fill_manual(values = c('green', 'red')) +
+        geom_boxplot() +
+        coord_flip() +
+        theme_bw() +
+        theme(panel.grid = element_blank()) +
+        xlab('') + ggtitle('Blish')
+dev.off()
+
+pdf('figures/blish_scoring.pdf')
+subset(blish, 
+       Admission.level %in% c('Floor', 
+                              'ICU'))@meta.data %>%
+        ggplot(aes(x = Admission.level, 
+                   y = permissivity_signature_score1,
+                   fill = Admission.level)) +
+        scale_fill_manual(values = c('green', 'red')) +
+        geom_boxplot() +
+        theme_bw() +
+        theme(panel.grid = element_blank()) +
+        xlab('') + ggtitle('Blish')
+dev.off()
+
+pdf('figures/blish_scoring_dotplot.pdf')
+DotPlot(subset(blish, 
+               Admission.level %in% c('Floor', 
+                                      'ICU')),
+        features = 'permissivity_signature_score1',
+        group.by = 'Admission.level', 
+        dot.scale = 20) +
+        scale_color_viridis() + ggtitle('Blish')
+dev.off()
+
+pdf('figures/blish_scoring_boxplot_wt.pdf')
+subset(blish, 
+       Admission.level %in% c('Floor', 
+                              'ICU'))@meta.data %>%
+        mutate(Admission.level = factor(Admission.level,
+                                        levels = c('Floor',
+                                                   'ICU'))) %>%
+        ggboxplot(x = "Admission.level", 
+                  y = "permissivity_signature_score1",
+                  color = "Admission.level", 
+                  palette = "jco") +
+        stat_compare_means(label.y = 0.11) +
+        scale_color_manual(values = c('green3', 'red3')) +
+        ggtitle('Blish')
+dev.off()
