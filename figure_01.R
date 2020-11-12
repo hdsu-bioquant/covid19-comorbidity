@@ -3,12 +3,69 @@
 library(Seurat)
 library(dplyr)
 library(ggplot2)
+library(RColorBrewer)
 
 set.seed(333)
 
 ## Setting up paths
 project_dir <- '~/sc/covid19-comorbidity/'
 setwd(project_dir)
+
+################################################################################
+# Pie chart for all the top 25% most important genes in varios categories      #
+################################################################################
+
+rf <- read.table('data/variable_importance_ranked_genes.tsv',
+                 header = TRUE)
+head(rf)
+
+signature.df <- read.table('data/permissivity_signature_annotated.tsv',
+                           header = TRUE)
+rownames(signature.df) <- signature.df$gene
+
+signature.df <- merge(signature.df, rf)
+signature.df <- arrange(signature.df, desc(IncNodePurity))
+rownames(signature.df) <- signature.df$gene
+
+## Selecting 25% top ranked genes
+signature.sel <- signature.df[1:round(nrow(signature.df)*0.25), ]
+
+signature.sel <- select(signature.sel, 
+                        go_viral:infection_signature)
+freqs <- apply(signature.sel, 2, sum)
+
+names <- c("GO viral process", "Surfaceome", 
+           "SARS-CoV2 Interactome", "CellphoneDB", 
+           "SARS-CoV2 Infection signature")
+freqs.df <- data.frame(category = names(freqs),
+                       frequency = freqs,
+                       abbv = names)
+
+freqs.df <- freqs.df %>% 
+        arrange(desc(category)) %>%
+        mutate(prop = frequency / sum(freqs.df$frequency) * 100) %>%
+        mutate(ypos = cumsum(prop)- 0.5*prop) %>%
+        mutate(color = brewer.pal(nrow(freqs.df), "Set1"))
+
+pdf('figures/pie_chart.pdf')
+ggplot(freqs.df, aes(x="", y=prop, fill=abbv)) + 
+        theme_void(base_size = 9) + 
+        labs(fill = "") + geom_bar(stat="identity", 
+                                   width=1, color="white") +
+        coord_polar("y", start=0) +
+        geom_text(aes(y = ypos, label = frequency), 
+                  color = "white", size = 2) +
+        scale_fill_manual(values = rev(freqs.df$color))
+dev.off()
+
+signature.sel <- mutate(signature.sel, 
+                        gene=rownames(signature.sel)) 
+lapply(
+        select(signature.sel, go_viral:infection_signature), 
+        function(x) signature.sel$gene[x]
+)
+
+##############################################################################
 
 ## Downloading data
 url_lorenz <- 'https://ndownloader.figshare.com/files/22927382'
