@@ -1,0 +1,27 @@
+#-------------------------------------------------------------------------#
+#-------------------------- TOBIAS input data ----------------------------#
+#-------------------------------------------------------------------------#
+
+data:
+  cdo: ['data/bam/SRR10461991_caco_organoid_rep01_R1.bam',
+            'data/bam/SRR10461992_caco_organoid_rep02_R1.bam']
+
+
+run_info:
+  organism: human                           #mouse/human
+  fasta: /media/ag-cherrmann/aquintero/pipelines/pipelines-ATACseq/db/iGenomes/Homo_sapiens/UCSC/hg38/Sequence/WholeGenomeFasta/genome.fa                               #.fasta-file containing organism genome
+  blacklist: /media/ag-cherrmann/lcosta/miniconda/Blacklist/lists/hg38-blacklist.v2.bed       #.bed-file containing blacklisted regions
+  gtf:  /media/ag-cherrmann/tranff/dlTADs/data/K562/gencode.v35.annotation.gtf
+  motifs: /media/ag-cherrmann/cramirez/TOBIAS_snakemake/data/motifs/*
+  output: output_CDO
+
+
+
+#-------------------------------------------------------------------------#
+#----------------------- Default module parameters -----------------------#
+#-------------------------------------------------------------------------#
+
+macs: "--nomodel --shift -100 --extsize 200 --broad"
+atacorrect: ""
+footprinting: ""
+bindetect: ""
