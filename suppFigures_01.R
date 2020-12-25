@@ -5,11 +5,49 @@ library(dplyr)
 library(Seurat)
 library(ggplot2)
 library(readxl)
+library(ggrepel)
 
 ## Initial settings
-project_dir <- '/media/ag-cherrmann/cramirez/covid19-comorbidity/'
+project_dir <- '/Users/carlosramirez/sc/covid19-comorbidity/'
+#project_dir <- '/media/ag-cherrmann/cramirez/covid19-comorbidity/'
 setwd(project_dir)
 
+###################################################################
+##                                                               ##
+##      SPINT2 and TMPRSS2 expression in Calu-3 and H1299        ##
+##      cells                                                    ##
+##                                                               ##
+###################################################################
+
+## Reading data
+calu <- readRDS('../sars-cov2/data/200408.Seurat_Calu_CoV_1000_Merged.rds')
+calu$strain[calu$strain == 'nan'] <- 'mock'
+calu.nin <- subset(calu, orig.ident %in% c("Calu3-mock-4h-A", "Calu3-mock-4h-B") )
+rm(calu)
+h1299 <- readRDS('../sars-cov2/data/200406.Seurat_H1299_CoV_1000_Merged.rds')
+h1299.nin <- subset(h1299, orig.ident %in% c("H1299-mock-4h-A", "H1299-mock-4h-B"))
+rm(h1299)
+calu.h1299.nin <- merge(calu.nin, h1299.nin)
+rm(calu.nin, h1299.nin)
+
+## Normalization and dimension reduction
+calu.h1299.nin <- SCTransform(calu.h1299.nin)
+calu.h1299.nin <- FindVariableFeatures(calu.h1299.nin, nfeatures = 3000)
+calu.h1299.nin <- RunPCA(calu.h1299.nin, 
+                         features = VariableFeatures(calu.h1299.nin))
+ElbowPlot(calu.h1299.nin)
+calu.h1299.nin <- RunUMAP(calu.h1299.nin, reduction = 'pca', dims = 1:10)
+
+calu.h1299.nin$'cell_line' <- sapply(
+    calu.h1299.nin$orig.ident, function(x)
+    ifelse(grepl('Calu', x), 'Calu-3', 'H1299')
+)
+calu.h1299.nin$cell_line %>% table()
+
+DotPlot(calu.h1299.nin,
+        group.by = 'cell_line', 
+        features = c('TMPRSS2', 'ACE2', 'SPINT2', '')
+)
 ##################################################################
 ##                                                              ##
 ##      Scoring permissivity signature in HCL cells             ##
@@ -66,15 +104,19 @@ scores_by_cell_type <- split(scores$permissivity_signature_score1,
 mean_by_celltype <- lapply(scores_by_cell_type, mean)
 order.celltype <- mean_by_celltype %>%
         unlist() %>%
-        sort() %>%
+        sort(decreasing = TRUE) %>%
         names
+
+## selecting top n cell types
+n <- 30
 
 ## Violin plot. Permissivity scores of cell types
 pdf('figures/vlnplot_permissivity_score_bycelltype_hcl.pdf',
     width = 13)
 scores %>%
+        filter(celltype %in% order.celltype[1:n]) %>%
         mutate(celltype = factor(celltype,
-                                 levels = order.celltype)) %>%
+                                 levels = order.celltype[1:n])) %>%
         ggplot(aes(x=celltype, 
                    y=permissivity_signature_score1,
                    fill=celltype)) +
@@ -86,10 +128,12 @@ dev.off()
 
 ## Box plot
 pdf('figures/boxplot_permissivity_score_bycelltype_hcl.pdf',
-    width = 13)
+    width = 13, height = 10)
 scores %>%
+        filter(celltype %in% order.celltype[1:n]) %>%
         mutate(celltype = factor(celltype,
-                                 levels = order.celltype)) %>%
+                                 levels = order.celltype[1:n][n:1])
+               ) %>%
         ggplot(aes(x=celltype, 
                    y=permissivity_signature_score1,
                    fill=celltype)) +
@@ -250,4 +294,36 @@ gridExtra::grid.arrange(
 )
 dev.off()
 
+##########################################################
+## CDX2 binds to SPINT2 and TMPRSS2 during the embryonic
+## development
+
+markers <- c('SPINT2', 'TMPRSS2', 'SPINT1',
+             'ST14')
+
+chipseq <- read_xls('data/41598_2017_16009_MOESM3_ESM.xls',
+                    sheet = 'Cdx2 Association Score', 
+                    skip = 1)
+
+pdf('figures/cdx2_chipseq_mouse_embryo.pdf')
+chipseq %>%
+    arrange(desc(`Cdx2 Score`)) %>%
+    mutate(rank=1:nrow(chipseq)) %>%
+    mutate(highlight=ifelse(rank < 10 | 
+                                toupper(Symbol) %in% markers,
+                            TRUE, FALSE)) %>%
+    mutate(gene_label = ifelse(highlight == TRUE,
+                               Symbol, '')) %>%
+    ggplot(aes(x = rank,
+               y = `Cdx2 Score`,
+               colour = highlight,
+               label = gene_label)) +
+            geom_point() +
+            scale_color_manual(values=c('black',
+                                        'red')) +
+            geom_text_repel() +
+            theme_bw() +
+            theme(panel.grid = element_blank(),
+                  legend.position = 'none') 
+dev.off()
 
